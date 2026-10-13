@@ -7,8 +7,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -18,181 +16,9 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/home"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/homeplugins"
-	"github.com/router-for-me/CLIProxyAPI/v8/internal/pluginhost"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/executionregistry"
 	sdkpluginstore "github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginstore"
-	"gopkg.in/yaml.v3"
 )
-
-func TestSyncHomePluginsSkipsUnchangedSignature(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.Home.Enabled = true
-	cfg.Plugins.Enabled = true
-	cfg.Plugins.Configs = map[string]config.PluginInstanceConfig{}
-
-	service := &Service{homePluginSyncFetch: func(context.Context, sdkpluginstore.PluginSyncRequest) (sdkpluginstore.PluginSyncResponse, error) {
-		return sdkpluginstore.PluginSyncResponse{
-			SchemaVersion: sdkpluginstore.PluginSyncSchemaVersion,
-			ExpiresAt:     time.Now().UTC().Add(time.Minute),
-			Items:         []sdkpluginstore.PluginSyncItem{},
-		}, nil
-	}}
-	report, key, didSync, errSync := service.syncHomePlugins(context.Background(), cfg)
-	if errSync != nil {
-		t.Fatalf("syncHomePlugins() error = %v", errSync)
-	}
-	if !didSync || key == "" || !report.OK {
-		t.Fatalf("syncHomePlugins() didSync=%v key=%q report=%+v, want reportable empty plan", didSync, key, report)
-	}
-	service.markHomePluginsSynced(key)
-
-	_, gotKey, didSync, errSync := service.syncHomePlugins(context.Background(), cfg)
-	if errSync != nil {
-		t.Fatalf("syncHomePlugins(second) error = %v", errSync)
-	}
-	if didSync || gotKey != key {
-		t.Fatalf("syncHomePlugins(second) didSync=%v key=%q, want skipped same key %q", didSync, gotKey, key)
-	}
-}
-
-func TestSyncHomePluginsFetchFailureReturnsFailureReport(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.Home.Enabled = true
-	cfg.Plugins.Enabled = true
-	cfg.Plugins.Configs = map[string]config.PluginInstanceConfig{}
-	wantErr := errors.New("plugin sync unavailable")
-	service := &Service{homePluginSyncFetch: func(context.Context, sdkpluginstore.PluginSyncRequest) (sdkpluginstore.PluginSyncResponse, error) {
-		return sdkpluginstore.PluginSyncResponse{}, wantErr
-	}}
-
-	report, key, didSync, errSync := service.syncHomePlugins(context.Background(), cfg)
-	if !errors.Is(errSync, wantErr) {
-		t.Fatalf("syncHomePlugins() error = %v, want %v", errSync, wantErr)
-	}
-	if didSync {
-		t.Fatalf("syncHomePlugins() didSync = true, want false before a plan is available")
-	}
-	if key == "" {
-		t.Fatal("syncHomePlugins() key is empty")
-	}
-	if report.SchemaVersion != 1 || report.Task != "plugin-sync" || report.OK || report.Error != wantErr.Error() {
-		t.Fatalf("syncHomePlugins() report = %#v, want reportable fetch failure", report)
-	}
-}
-
-func TestSyncHomePluginsFallsBackForUnsupportedHomeProtocol(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.Home.Enabled = true
-	cfg.Plugins.Enabled = true
-	cfg.Plugins.Dir = t.TempDir()
-	cfg.Plugins.Configs = map[string]config.PluginInstanceConfig{}
-	service := &Service{homePluginSyncFetch: func(context.Context, sdkpluginstore.PluginSyncRequest) (sdkpluginstore.PluginSyncResponse, error) {
-		return sdkpluginstore.PluginSyncResponse{}, home.ErrPluginSyncUnsupported
-	}}
-
-	report, key, didSync, errSync := service.syncHomePlugins(context.Background(), cfg)
-	if errSync != nil {
-		t.Fatalf("syncHomePlugins() error = %v", errSync)
-	}
-	if !didSync || key == "" {
-		t.Fatalf("syncHomePlugins() didSync=%v key=%q, want legacy fallback", didSync, key)
-	}
-	if !report.OK || report.Task != "plugin-sync" {
-		t.Fatalf("syncHomePlugins() report = %#v, want successful legacy sync", report)
-	}
-}
-
-func TestSyncHomePluginsSkipsFetchWhenPluginsDisabled(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.Home.Enabled = true
-	cfg.Plugins.Configs = map[string]config.PluginInstanceConfig{}
-	fetchCalls := 0
-	service := &Service{homePluginSyncFetch: func(context.Context, sdkpluginstore.PluginSyncRequest) (sdkpluginstore.PluginSyncResponse, error) {
-		fetchCalls++
-		return sdkpluginstore.PluginSyncResponse{}, errors.New("fetch should not be called")
-	}}
-
-	report, key, didSync, errSync := service.syncHomePlugins(context.Background(), cfg)
-	if errSync != nil {
-		t.Fatalf("syncHomePlugins() error = %v", errSync)
-	}
-	if didSync || fetchCalls != 0 {
-		t.Fatalf("syncHomePlugins() didSync=%v fetchCalls=%d, want disabled skip", didSync, fetchCalls)
-	}
-	if key == "" || report.Task != "plugin-sync" || !report.OK {
-		t.Fatalf("disabled sync key/report = %q/%#v, want reportable disabled status", key, report)
-	}
-	if service.homePluginSyncKey != "" {
-		t.Fatalf("homePluginSyncKey = %q, want caller to mark after reporting", service.homePluginSyncKey)
-	}
-}
-
-func TestSyncHomePluginsSkipsDisabledReportWhenUnchanged(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.Home.Enabled = true
-	cfg.Plugins.Configs = map[string]config.PluginInstanceConfig{}
-	service := &Service{homePluginSyncFetch: func(context.Context, sdkpluginstore.PluginSyncRequest) (sdkpluginstore.PluginSyncResponse, error) {
-		return sdkpluginstore.PluginSyncResponse{}, errors.New("fetch should not be called")
-	}}
-
-	report, key, didSync, errSync := service.syncHomePlugins(context.Background(), cfg)
-	if errSync != nil {
-		t.Fatalf("syncHomePlugins() error = %v", errSync)
-	}
-	if didSync || key == "" || report.Task != "plugin-sync" || !report.OK {
-		t.Fatalf("syncHomePlugins() didSync=%v key=%q report=%#v, want reportable disabled status", didSync, key, report)
-	}
-	service.markHomePluginsSynced(key)
-
-	report, gotKey, didSync, errSync := service.syncHomePlugins(context.Background(), cfg)
-	if errSync != nil {
-		t.Fatalf("syncHomePlugins(second) error = %v", errSync)
-	}
-	if didSync || gotKey != key || report.Task != "" {
-		t.Fatalf("syncHomePlugins(second) didSync=%v key=%q report=%#v, want skipped unchanged disabled status", didSync, gotKey, report)
-	}
-}
-
-func TestApplyHomeOverlayReturnsRuntimePluginSyncFailureWithoutApplyingConfig(t *testing.T) {
-	base := &config.Config{}
-	base.Home.Enabled = true
-	base.Plugins.Enabled = true
-	service := &Service{cfg: base}
-
-	enabled := true
-	remote := &config.Config{}
-	remote.Plugins.Enabled = true
-	remote.Plugins.Configs = map[string]config.PluginInstanceConfig{
-		"broken": {
-			Enabled: &enabled,
-			Raw: yaml.Node{
-				Kind: yaml.MappingNode,
-				Tag:  "!!map",
-				Content: []*yaml.Node{
-					{Kind: yaml.ScalarNode, Tag: "!!str", Value: "store"},
-					{
-						Kind: yaml.MappingNode,
-						Tag:  "!!map",
-						Content: []*yaml.Node{
-							{Kind: yaml.ScalarNode, Tag: "!!str", Value: "id"},
-							{Kind: yaml.ScalarNode, Tag: "!!str", Value: "broken"},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	if errApply := service.applyHomeOverlayContext(context.Background(), remote); errApply == nil {
-		t.Fatal("applyHomeOverlayContext() error = nil, want plugin sync failure")
-	}
-	if service.cfg == nil || !service.cfg.Home.Enabled || len(service.cfg.Plugins.Configs) != 0 {
-		t.Fatalf("service cfg = %+v, want unchanged config after plugin sync failure", service.cfg)
-	}
-	if service.homePluginSyncKey != "" {
-		t.Fatalf("homePluginSyncKey = %q, want empty after plugin sync failure", service.homePluginSyncKey)
-	}
-}
 
 func TestStartHomeSubscriberDoesNotPreMarkPluginSync(t *testing.T) {
 	cfg := &config.Config{}
@@ -311,36 +137,6 @@ func TestFinalizeHomePluginWorkRetriesFailedStatusWithoutMarkingSynced(t *testin
 	}
 }
 
-func TestStageHomePluginTasksDefersDeleteUntilFinalization(t *testing.T) {
-	client, _ := newHomePluginTaskTestClient(t, []home.PluginTask{{ID: 7, Operation: "delete", PluginID: "plugin-a"}}, 0)
-	cfg := &config.Config{}
-	cfg.Home.Enabled = true
-	cfg.Home.NodeID = "node-1"
-	var deletes atomic.Int32
-	service := &Service{homePluginDeleteTask: func(_ context.Context, _ *config.Config, task home.PluginTask) homeplugins.SyncReport {
-		deletes.Add(1)
-		return homeplugins.DeleteWithReport(context.Background(), nil, nil, task.ID, task.PluginID)
-	}}
-
-	taskWork, errStage := service.stageHomePluginTasksWithClient(context.Background(), cfg, client)
-	if errStage != nil {
-		t.Fatalf("stageHomePluginTasksWithClient() error = %v", errStage)
-	}
-	if got := deletes.Load(); got != 0 {
-		t.Fatalf("staged plugin deletes = %d, want 0 before controlled finalization", got)
-	}
-	if len(taskWork) != 1 || taskWork[0].task.ID != 7 {
-		t.Fatalf("staged task work = %#v, want delete task 7", taskWork)
-	}
-
-	if errFinalize := service.finalizeHomePluginWork(context.Background(), client, &homePluginFinalization{taskWork: taskWork}); errFinalize != nil {
-		t.Fatalf("finalizeHomePluginWork() error = %v", errFinalize)
-	}
-	if got := deletes.Load(); got != 1 {
-		t.Fatalf("finalized plugin deletes = %d, want 1", got)
-	}
-}
-
 func TestFinalizeHomePluginTaskStatusRetryDoesNotRepeatDelete(t *testing.T) {
 	client, writes := newHomePluginTaskTestClient(t, nil, 1)
 	cfg := &config.Config{}
@@ -439,33 +235,6 @@ func newHomePluginTaskTestClient(t *testing.T, tasks []home.PluginTask, failStat
 	client := home.New(config.HomeConfig{Enabled: true, Host: host, Port: port})
 	t.Cleanup(client.Close)
 	return client, &writes
-}
-
-func TestStageHomeOverlayDoesNotApplyConfigAfterStageFailure(t *testing.T) {
-	baseCfg := &config.Config{}
-	baseCfg.Home.Enabled = true
-	baseCfg.Routing.Strategy = "round-robin"
-	remoteCfg := &config.Config{}
-	remoteCfg.Home.Enabled = true
-	remoteCfg.Routing.Strategy = "fill-first"
-	remoteCfg.Plugins.Enabled = true
-	service := &Service{
-		cfg: baseCfg,
-		homePluginSyncFetch: func(context.Context, sdkpluginstore.PluginSyncRequest) (sdkpluginstore.PluginSyncResponse, error) {
-			return sdkpluginstore.PluginSyncResponse{}, errors.New("plugin sync unavailable")
-		},
-	}
-
-	if _, errStage := service.stageHomeOverlayWithClient(context.Background(), remoteCfg, nil); errStage == nil {
-		t.Fatal("stageHomeOverlayWithClient() error = nil, want plugin sync failure")
-	}
-
-	service.cfgMu.RLock()
-	strategy := service.cfg.Routing.Strategy
-	service.cfgMu.RUnlock()
-	if strategy != "round-robin" {
-		t.Fatalf("failed stage applied routing strategy %q", strategy)
-	}
 }
 
 func TestReadyHomePluginFinalizationRetriesUntilStatusSucceeds(t *testing.T) {
@@ -693,80 +462,6 @@ func TestForceHomeRuntimeConfigClearsStoreAuth(t *testing.T) {
 	}
 }
 
-func TestStageHomeOverlay_InstalledPluginAtRuntime_Issue6225(t *testing.T) {
-	pluginsDir := t.TempDir()
-	platform := homeplugins.CurrentPlatform()
-	ext := ".so"
-	switch platform.GOOS {
-	case "darwin":
-		ext = ".dylib"
-	case "windows":
-		ext = ".dll"
-	}
-	pluginFileName := "myplugin-v1.0.0" + ext
-	if errWrite := os.WriteFile(filepath.Join(pluginsDir, pluginFileName), []byte("dummy"), 0o755); errWrite != nil {
-		t.Fatalf("write dummy plugin file: %v", errWrite)
-	}
-
-	baseCfg := &config.Config{}
-	baseCfg.Home.Enabled = true
-	baseCfg.Home.NodeID = "node-1"
-	baseCfg.Plugins.Enabled = true
-	baseCfg.Plugins.Dir = pluginsDir
-	baseCfg.Plugins.Configs = map[string]config.PluginInstanceConfig{}
-
-	enabled := true
-	remoteCfg := &config.Config{}
-	remoteCfg.Home.Enabled = true
-	remoteCfg.Home.NodeID = "node-1"
-	remoteCfg.Plugins.Enabled = true
-	remoteCfg.Plugins.Dir = pluginsDir
-	remoteCfg.Plugins.Configs = map[string]config.PluginInstanceConfig{
-		"myplugin": {Enabled: &enabled},
-	}
-
-	client, writes := newHomePluginTaskTestClient(t, nil, 0)
-
-	service := &Service{
-		cfg:        baseCfg,
-		pluginHost: pluginhost.New(),
-		homePluginSyncFetch: func(context.Context, sdkpluginstore.PluginSyncRequest) (sdkpluginstore.PluginSyncResponse, error) {
-			return sdkpluginstore.PluginSyncResponse{
-				SchemaVersion: sdkpluginstore.PluginSyncSchemaVersion,
-				ExpiresAt:     time.Now().UTC().Add(time.Minute),
-				Items:         []sdkpluginstore.PluginSyncItem{},
-			}, nil
-		},
-	}
-
-	work, errStage := service.stageHomeOverlayWithClient(context.Background(), remoteCfg, client)
-	if errStage != nil {
-		t.Fatalf("stageHomeOverlayWithClient() error = %v, want successful stage without premature load failure", errStage)
-	}
-	if work == nil {
-		t.Fatal("stageHomeOverlayWithClient() returned nil work")
-	}
-	if len(work.statusWork) != 1 {
-		t.Fatalf("len(work.statusWork) = %d, want 1", len(work.statusWork))
-	}
-	if !work.statusWork[0].needsLoadMarking {
-		t.Fatal("statusWork[0].needsLoadMarking = false, want true")
-	}
-
-	if errFinalize := service.finalizeHomePluginWork(context.Background(), client, work); errFinalize != nil {
-		t.Fatalf("finalizeHomePluginWork() error = %v", errFinalize)
-	}
-	if writes.Load() != 1 {
-		t.Fatalf("plugin status writes = %d, want 1", writes.Load())
-	}
-	if work.statusWork[0].needsLoadMarking {
-		t.Fatal("statusWork[0].needsLoadMarking = true after finalize, want false")
-	}
-	if gotLoadStatus := work.statusWork[0].report.Plugins[0].LoadStatus; gotLoadStatus != "failed" {
-		t.Fatalf("LoadStatus = %q, want 'failed' for unapplied plugin", gotLoadStatus)
-	}
-}
-
 func TestHomeConfigWorkQueue_TryDequeueLatest_Issue6225(t *testing.T) {
 	q := newHomeConfigWorkQueue()
 	if _, ok := q.tryDequeueLatest(); ok {
@@ -856,4 +551,19 @@ func TestHomeConfigWorkerPreemptsFailingConfigWithNewerPayload_Issue6225(t *test
 	currentStrat := service.cfg.Routing.Strategy
 	service.cfgMu.RUnlock()
 	t.Fatalf("worker never recovered to strategy 'recovered', current=%q", currentStrat)
+}
+
+func TestATIDHomeIgnoresExtensionPlans(t *testing.T) {
+	cfg := &config.Config{Home: config.HomeConfig{Enabled: true}, Plugins: config.PluginsConfig{Enabled: true}}
+	service := &Service{homePluginSyncFetch: func(context.Context, sdkpluginstore.PluginSyncRequest) (sdkpluginstore.PluginSyncResponse, error) {
+		t.Fatal("ATID requested an extension installation plan")
+		return sdkpluginstore.PluginSyncResponse{}, nil
+	}}
+	if _, _, synced, err := service.syncHomePlugins(context.Background(), cfg); err != nil || synced {
+		t.Fatalf("sync=%v error=%v", synced, err)
+	}
+	tasks, err := service.stageHomePluginTasksWithClient(context.Background(), cfg, nil)
+	if err != nil || len(tasks) != 0 {
+		t.Fatalf("tasks=%v error=%v", tasks, err)
+	}
 }

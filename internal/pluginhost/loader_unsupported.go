@@ -1,5 +1,3 @@
-//go:build !cgo && !windows
-
 package pluginhost
 
 import "fmt"
@@ -7,7 +5,7 @@ import "fmt"
 type unsupportedLoader struct{}
 
 func (unsupportedLoader) Open(file pluginFile, host *Host) (pluginClient, error) {
-	return nil, fmt.Errorf("standard dynamic library plugin loading requires cgo on this platform: %s", file.Path)
+	return nil, fmt.Errorf("ATID CLI Proxy does not support dynamic plugins: %s", file.Path)
 }
 
 func defaultPluginLoader() pluginLoader {

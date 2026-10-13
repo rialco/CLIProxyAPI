@@ -1,0 +1,281 @@
+.container {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  container-type: inline-size;
+}
+
+.pageHeader,
+.headingGroup,
+.sectionHeader,
+.sessionActions {
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+  min-width: 0;
+}
+
+.pageHeader,
+.sectionHeader,
+.sessionActions {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.headingGroup {
+  flex: 1;
+}
+
+.pageTitle {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.25;
+}
+
+.productName {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.aboutLogo {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.aboutInfoGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-block: 1px solid var(--border-color);
+}
+
+.infoTile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 14px $spacing-md;
+  border: 0;
+  background: transparent;
+  text-align: left;
+
+  & + & {
+    border-left: 1px solid var(--border-color);
+  }
+}
+
+.tapTile {
+  color: inherit;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background-color var(--dur-hover, 200ms) ease;
+
+  &:hover {
+    background: var(--bg-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+  }
+}
+
+.tileLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.tileValue {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.tileSub {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.quickLinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-xs $spacing-lg;
+  margin-top: -8px;
+}
+
+.quickLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-decoration: none;
+  transition: color var(--dur-hover, 200ms) ease;
+
+  svg {
+    flex-shrink: 0;
+  }
+
+  &:hover {
+    color: var(--text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 4px;
+    border-radius: 2px;
+  }
+}
+
+.modelsSection {
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.sectionHeader {
+  gap: $spacing-sm;
+}
+
+.sectionHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: $spacing-xs $spacing-sm;
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.modelCount,
+.sectionDescription,
+.sessionDescription {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.sectionDescription {
+  margin: $spacing-sm 0 $spacing-md;
+}
+
+.emptyState {
+  margin: 0;
+  padding: 24px $spacing-md;
+  border: 1px dashed var(--border-color);
+  border-radius: $radius-md;
+  color: var(--text-secondary);
+  text-align: center;
+  font-size: 13px;
+}
+
+.modelGroups {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-sm;
+}
+
+.groupTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
+.groupIcon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.modelTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-sm;
+}
+
+.modelTag {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: $spacing-xs;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: $radius-sm;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.modelName {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.modelAlias {
+  color: var(--text-secondary);
+}
+
+.sessionDescription {
+  margin: 0;
+}
+
+@container (max-width: 660px) {
+  .pageHeader {
+    align-items: flex-start;
+  }
+
+  .headingGroup {
+    flex-basis: 100%;
+  }
+
+  .aboutInfoGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .infoTile {
+    padding: 12px;
+
+    &:nth-child(3) {
+      border-left: 0;
+    }
+
+    &:nth-child(n + 3) {
+      border-top: 1px solid var(--border-color);
+    }
+  }
+
+  .pageTitle {
+    font-size: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quickLink,
+  .tapTile {
+    transition: none;
+  }
+}

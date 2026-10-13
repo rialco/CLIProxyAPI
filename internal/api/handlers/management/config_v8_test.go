@@ -281,7 +281,6 @@ func TestV8MigrationReloadSnapshotMatchesDisk(t *testing.T) {
 	}{
 		{"legacy", "/v0/management/debug", "/v0/management/debug", `{"value":true}`, func(h *Handler) gin.HandlerFunc { return h.PutDebug }, false},
 		{"v8 logs", "/v8/management/config/*path", "/v8/management/config/observability/logs/debug", `true`, func(h *Handler) gin.HandlerFunc { return h.ConfigV8 }, true},
-		{"v8 plugin", "/v8/management/config/*path", "/v8/management/config/plugins/configs/test-plugin/enabled", `false`, func(h *Handler) gin.HandlerFunc { return h.ConfigV8 }, true},
 		{"v8 config", "/v8/management/config", "/v8/management/config", `{"observability":{"logs":{"debug":true}}}`, func(h *Handler) gin.HandlerFunc { return h.ConfigV8 }, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -747,14 +746,10 @@ plugins:
 			t.Fatalf("lost comment %s", comment)
 		}
 	}
-	for _, tc := range []struct{ name, body string }{{"options", "{}"}, {"custom-null", "null"}} {
-		path := "plugins/configs/sample/" + tc.name
-		request(http.MethodGet, path, http.StatusOK, tc.body)
-		request(http.MethodDelete, path, http.StatusOK, "")
-		checkReload()
-		request(http.MethodGet, path, http.StatusNotFound, "")
-		request(http.MethodDelete, path, http.StatusNotFound, "")
-	}
+	// Legacy extension data stays inert on disk, but is no longer exposed or editable.
+	request(http.MethodGet, "plugins/configs/sample/options", http.StatusNotFound, "")
+	request(http.MethodDelete, "plugins/configs/sample/options", http.StatusNotFound, "")
+
 }
 
 func TestConfigV8SaveNormalizesCollectionStylesToBlockYAML(t *testing.T) {

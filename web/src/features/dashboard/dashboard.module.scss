@@ -1,0 +1,441 @@
+@use '../../styles/mixins' as *;
+
+.page {
+  container-type: inline-size;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.overviewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+.overviewCopy {
+  min-width: 0;
+}
+.pageTitle {
+  margin: 0 0 6px;
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+.statusLine {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+.statusDotLive {
+  animation: statusPulse 3s ease-in-out infinite;
+}
+.versionMeta {
+  color: var(--text-tertiary);
+}
+.headerActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.primaryAction,
+.ghostAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color var(--dur-hover) var(--ease-out-strong);
+}
+.primaryAction {
+  background: var(--text-primary);
+  color: var(--bg-secondary);
+  &:hover {
+    background: color-mix(in srgb, var(--text-primary) 86%, var(--bg-secondary));
+  }
+}
+.ghostAction {
+  color: var(--text-secondary);
+  &:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+}
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-block: 1px solid var(--border-color);
+}
+.statTile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px;
+  border-inline-start: 1px solid var(--border-color);
+  &:first-child {
+    border-inline-start: 0;
+    padding-inline-start: 0;
+  }
+}
+.statLabel {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.statValue {
+  font-family: $font-mono;
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.statHint {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+.statMeter {
+  max-width: 120px;
+}
+.activityGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 24px;
+}
+.section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 12px;
+}
+.sectionHead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sectionTitle,
+.panelTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.sectionDescription {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 12px;
+}
+.panelHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.emptyNote {
+  margin: 0;
+  padding: 16px 0;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+.fleetList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fleetRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(66px, 0.5fr);
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color);
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+.fleetRank {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-quaternary);
+}
+.fleetIdentity {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fleetName {
+  font-size: 13px;
+  font-weight: 600;
+  @include text-ellipsis;
+}
+.fleetMeta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.fleetSpark {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  height: 20px;
+}
+.fleetNumbers {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.fleetTotal {
+  font-family: $font-mono;
+  font-size: 14px;
+  font-weight: 600;
+}
+.fleetTotalLabel {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.fleetRate {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fleetRateValue {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+.fleetMeter {
+  height: 4px;
+}
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
+.runtimeDetails {
+  width: 100%;
+  min-width: 0;
+}
+.runtimeContent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.healthBar {
+  display: flex;
+  height: 6px;
+  gap: 2px;
+}
+.healthSegment {
+  display: block;
+  min-width: 4px;
+  border-radius: 2px;
+}
+.healthActive {
+  background: var(--viz-success);
+}
+.healthUnavailable {
+  background: var(--amber-color);
+}
+.healthDisabled {
+  background: var(--text-quaternary);
+}
+.healthLegend,
+.typeList,
+.toggleList {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  gap: 8px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.healthLegend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.healthLegend b,
+.typeChip b {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.healthKey {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+.typeBreakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.typeBreakdownLabel {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.typeChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.panelLink {
+  align-self: flex-start;
+  color: var(--primary-active);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.panelLink:hover {
+  text-decoration: underline;
+}
+.linkArrow {
+  display: inline-block;
+  transition: transform var(--dur-hover) var(--ease-out-strong);
+}
+.panelLink:hover .linkArrow,
+.shortcut:hover .linkArrow {
+  transform: translateX(2px);
+}
+.specList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+.specRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+  &:last-child {
+    border: 0;
+  }
+}
+.specLabel {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.specValue {
+  min-width: 0;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.specMono {
+  font-family: $font-mono;
+  font-size: 11px;
+}
+.togglePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.toggleOn b {
+  color: var(--success-badge-text);
+}
+.toggleOff b {
+  color: var(--text-tertiary);
+}
+.shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+.shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-decoration: none;
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+@container (max-width: 760px) {
+  .activityGrid,
+  .detailGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .statsRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .requestTile {
+    grid-column: 1 / -1;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .statTile {
+    padding: 12px;
+    &:nth-child(even) {
+      border-inline-start: 0;
+      padding-inline-start: 0;
+    }
+  }
+  .requestTile {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+}
+@keyframes statusPulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .statusDotLive {
+    animation: none;
+  }
+  .linkArrow,
+  .primaryAction,
+  .ghostAction {
+    transition: none;
+  }
+  .panelLink:hover .linkArrow,
+  .shortcut:hover .linkArrow {
+    transform: none;
+  }
+}

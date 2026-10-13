@@ -138,6 +138,17 @@ func (s *Service) applyHomeOverlayContext(ctx context.Context, remoteCfg *config
 }
 
 func (s *Service) applyHomeOverlayWithClient(ctx context.Context, remoteCfg *config.Config, client *home.Client) error {
+	if s == nil || remoteCfg == nil {
+		return nil
+	}
+	if client == nil {
+		s.homeMu.Lock()
+		client = s.homeClient
+		s.homeMu.Unlock()
+	}
+	if client == nil {
+		return fmt.Errorf("home client is not ready")
+	}
 	work, errStage := s.stageHomeOverlayWithClient(ctx, remoteCfg, client)
 	if errStage != nil {
 		return errStage

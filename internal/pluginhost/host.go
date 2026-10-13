@@ -203,6 +203,13 @@ func (h *Host) PluginBusy(id string) bool {
 }
 
 func (h *Host) ApplyConfig(ctx context.Context, cfg *config.Config) {
+	// Keep the core integration interfaces, but never discover or load extensions.
+	// Unit-test hosts can still inject a fake loader to exercise shared contracts.
+	if h != nil {
+		if _, disabled := h.loader.(unsupportedLoader); disabled {
+			return
+		}
+	}
 	if h == nil || !h.lockApply(ctx) {
 		return
 	}

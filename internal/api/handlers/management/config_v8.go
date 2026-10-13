@@ -43,8 +43,20 @@ func (h *Handler) ConfigV8(c *gin.Context) {
 	if path != "" {
 		parts = strings.Split(path, "/")
 	}
+	if len(parts) > 0 && parts[0] == "plugins" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		return
+	}
 	yamlRequest := strings.HasSuffix(c.FullPath(), "/config.yaml")
 	if c.Request.Method == http.MethodGet {
+		if deleteConfigV8Path(root, []string{"plugins"}) {
+			data, err = yaml.Marshal(&doc)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "encode_failed"})
+				return
+			}
+		}
+
 		config.ProjectV8ConfigAliases(root, strings.Join(parts, "."))
 		if !yamlRequest {
 			if servers := configV8Node(root, v8ICEServersPath); servers != nil && servers.Kind == yaml.SequenceNode {
@@ -99,6 +111,10 @@ func (h *Handler) ConfigV8(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_body"})
 			return
 		}
+		if len(parts) == 0 && configV8Node(update.Content[0], []string{"plugins"}) != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported_feature", "message": "Plugins are not available in ATID CLI Proxy"})
+			return
+		}
 		stripAPIKeysAuthIndexesFromUpdate(parts, &update)
 		if len(parts) == 0 && update.Content[0].Kind != yaml.MappingNode {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "config_must_be_object"})
@@ -143,7 +159,7 @@ func (h *Handler) ConfigV8(c *gin.Context) {
 		preserveV8TURNSecrets(root, before)
 	}
 	// Revisions are owned by Home and must not become ordinary editable settings.
-	for _, field := range []string{"credentials/concurrency/lifecycle-config-revision", "credentials/concurrency/observation-barrier-revision", "plugins/auth-revision"} {
+	for _, field := range []string{"credentials/concurrency/lifecycle-config-revision", "credentials/concurrency/observation-barrier-revision"} {
 		old := configV8Node(before, strings.Split(field, "/"))
 		next := configV8Node(root, strings.Split(field, "/"))
 		var a, b any

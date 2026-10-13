@@ -1,136 +1,50 @@
 package managementasset
 
 import (
-	"io"
+	"context"
 	"net/http"
-	"net/http/httptest"
-	"strings"
+	"os"
+	"path/filepath"
 	"testing"
-
-	"github.com/router-for-me/CLIProxyAPI/v8/internal/config"
 )
 
-type githubAssetTransport func(*http.Request) (*http.Response, error)
+type rejectAssetNetwork struct{ t *testing.T }
 
-func (f githubAssetTransport) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
+func (r rejectAssetNetwork) RoundTrip(*http.Request) (*http.Response, error) {
+	r.t.Fatal("the ATID panel must never be downloaded")
+	return nil, nil
+}
 
-func TestFetchLatestAssetSetsGitHubAuthorization(t *testing.T) {
-	t.Setenv("GITHUB_TOKEN", "asset-token")
-	t.Setenv("GITSTORE_GIT_TOKEN", "")
-	t.Setenv("GITSTORE_GIT_URL", "")
-
-	var authorization string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		authorization = req.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"assets":[{"name":"management.html","browser_download_url":"https://example.com/management.html","digest":"sha256:abc123"}]}`))
-	}))
-	defer server.Close()
-
-	asset, remoteHash, err := fetchLatestAsset(t.Context(), server.Client(), server.URL)
-	if err != nil {
-		t.Fatalf("fetchLatestAsset() error = %v", err)
+func TestLocalManagementAssetNeverDownloadsOrOverwrites(t *testing.T) {
+	old := http.DefaultTransport
+	http.DefaultTransport = rejectAssetNetwork{t}
+	t.Cleanup(func() { http.DefaultTransport = old })
+	dir := t.TempDir()
+	if EnsureLatestManagementHTML(context.Background(), dir, "", "https://example.com/releases") {
+		t.Fatal("missing local asset reported as present")
 	}
-	if authorization != "" {
-		t.Fatal("token leaked to non-GitHub release URL")
+	asset := filepath.Join(dir, ManagementFileName)
+	original := []byte("<title>ATID CLI Proxy</title>")
+	if err := os.WriteFile(asset, original, 0600); err != nil {
+		t.Fatal(err)
 	}
-	client := &http.Client{Transport: githubAssetTransport(func(req *http.Request) (*http.Response, error) {
-		if req.Header.Get("Authorization") != "Bearer asset-token" {
-			t.Fatal("GitHub API token missing")
-		}
-		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"assets":[{"name":"management.html","digest":"sha256:abc123"}]}`))}, nil
-	})}
-	if _, _, errGitHub := fetchLatestAsset(t.Context(), client, "https://api.github.com/repos/owner/repo/releases/latest"); errGitHub != nil {
-		t.Fatal(errGitHub)
+	StartAutoUpdater(context.Background(), filepath.Join(dir, "config.yaml"))
+	if !EnsureLatestManagementHTML(context.Background(), dir, "", "https://example.com/releases") {
+		t.Fatal("local panel missing")
 	}
-	if asset == nil || asset.Name != managementAssetName {
-		t.Fatalf("asset = %#v, want %q", asset, managementAssetName)
-	}
-	if remoteHash != "abc123" {
-		t.Fatalf("remoteHash = %q, want %q", remoteHash, "abc123")
+	got, err := os.ReadFile(asset)
+	if err != nil || string(got) != string(original) {
+		t.Fatalf("local panel changed: %v", err)
 	}
 }
 
-func TestFetchLatestAssetOmitsAuthorizationWithoutToken(t *testing.T) {
-	t.Setenv("GITHUB_TOKEN", "")
-	t.Setenv("github_token", "")
-	t.Setenv("GITSTORE_GIT_TOKEN", "")
-	t.Setenv("GITSTORE_GIT_URL", "")
-
-	var authorization string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		authorization = req.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"assets":[{"name":"management.html","browser_download_url":"https://example.com/management.html","digest":"sha256:abc123"}]}`))
-	}))
-	defer server.Close()
-
-	asset, remoteHash, err := fetchLatestAsset(t.Context(), server.Client(), server.URL)
-	if err != nil {
-		t.Fatalf("fetchLatestAsset() error = %v", err)
+func TestManagementAssetPaths(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("MANAGEMENT_STATIC_PATH", filepath.Join(dir, ManagementFileName))
+	if got := FilePath("unused"); got != filepath.Join(dir, ManagementFileName) {
+		t.Fatalf("path=%q", got)
 	}
-	if authorization != "" {
-		t.Fatalf("Authorization = %q, want empty", authorization)
-	}
-	if asset == nil || asset.Name != managementAssetName {
-		t.Fatalf("asset = %#v, want %q", asset, managementAssetName)
-	}
-	if remoteHash != "abc123" {
-		t.Fatalf("remoteHash = %q, want %q", remoteHash, "abc123")
-	}
-}
-
-func TestAutoUpdateSkipReason(t *testing.T) {
-	tests := []struct {
-		name       string
-		cfg        *config.Config
-		wantReason string
-		wantSkip   bool
-	}{
-		{
-			name:       "nil config",
-			cfg:        nil,
-			wantReason: "config not yet available",
-			wantSkip:   true,
-		},
-		{
-			name: "cluster mode",
-			cfg: &config.Config{
-				Home: config.HomeConfig{Enabled: true},
-			},
-			wantReason: "cluster mode enabled",
-			wantSkip:   true,
-		},
-		{
-			name: "control panel disabled",
-			cfg: &config.Config{
-				RemoteManagement: config.RemoteManagement{DisableControlPanel: true},
-			},
-			wantReason: "control panel disabled",
-			wantSkip:   true,
-		},
-		{
-			name: "auto update disabled",
-			cfg: &config.Config{
-				RemoteManagement: config.RemoteManagement{DisableAutoUpdatePanel: true},
-			},
-			wantReason: "disable-auto-update-panel is enabled",
-			wantSkip:   true,
-		},
-		{
-			name:       "enabled",
-			cfg:        &config.Config{},
-			wantReason: "",
-			wantSkip:   false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotReason, gotSkip := autoUpdateSkipReason(tt.cfg)
-			if gotReason != tt.wantReason || gotSkip != tt.wantSkip {
-				t.Fatalf("autoUpdateSkipReason() = (%q, %t), want (%q, %t)", gotReason, gotSkip, tt.wantReason, tt.wantSkip)
-			}
-		})
+	if got := StaticDir("unused"); got != dir {
+		t.Fatalf("directory=%q", got)
 	}
 }

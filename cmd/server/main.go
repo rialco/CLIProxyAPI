@@ -25,7 +25,6 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/githubauth"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/home"
-	"github.com/router-for-me/CLIProxyAPI/v8/internal/homeplugins"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/logging"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/managementasset"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/misc"
@@ -39,7 +38,6 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/util"
 	sdkAuth "github.com/router-for-me/CLIProxyAPI/v8/sdk/auth"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/auth"
-	sdkpluginstore "github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginstore"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -83,7 +81,7 @@ func main() {
 		discoverFlags.Func("exclude", "Comma-separated interface names to skip", appendCSV(&exclude))
 		_ = discoverFlags.Parse(os.Args[2:])
 		if !*jsonOut {
-			fmt.Fprintf(os.Stderr, "CLIProxyAPI Version: %s, Commit: %s, BuiltAt: %s\n", buildinfo.Version, buildinfo.Commit, buildinfo.BuildDate)
+			fmt.Fprintf(os.Stderr, "ATID CLI Proxy Version: %s, Commit: %s, BuiltAt: %s\n", buildinfo.Version, buildinfo.Commit, buildinfo.BuildDate)
 		}
 		cfgInclude, cfgExclude := cmd.LoadDiscoveryScanFilters(*configPathFlag)
 		include, exclude = cmd.ResolveDiscoveryInterfaceFilters(include, exclude, cfgInclude, cfgExclude)
@@ -99,9 +97,8 @@ func main() {
 
 	// For legacy --discover-json flag or JSON requests, keep stdout clean
 	isJSONDiscover := argvEnablesBoolFlag(os.Args[1:], "discover-json")
-	isDiscoverMode := isJSONDiscover || argvEnablesBoolFlag(os.Args[1:], "discover")
 	if !isJSONDiscover {
-		fmt.Printf("CLIProxyAPI Version: %s, Commit: %s, BuiltAt: %s\n", buildinfo.Version, buildinfo.Commit, buildinfo.BuildDate)
+		fmt.Printf("ATID CLI Proxy Version: %s, Commit: %s, BuiltAt: %s\n", buildinfo.Version, buildinfo.Commit, buildinfo.BuildDate)
 	}
 
 	// Command-line flags to control the application's behavior.
@@ -192,12 +189,6 @@ func main() {
 	}
 
 	pluginHost := pluginhost.New()
-	if !isDiscoverMode {
-		if bootstrapCfg := loadPluginBootstrapConfig(pluginBootstrapConfigPath(os.Args[1:], DefaultConfigPath)); bootstrapCfg != nil {
-			pluginHost.ApplyConfig(context.Background(), bootstrapCfg)
-			pluginHost.RegisterCommandLineFlags(context.Background(), flag.CommandLine)
-		}
-	}
 
 	// Parse the command-line flags.
 	flag.Parse()
@@ -221,8 +212,6 @@ func main() {
 	var isCloudDeploy bool
 	var configLoadedFromHome bool
 	var homeClient *home.Client
-	var homePluginSyncReport homeplugins.SyncReport
-	var homePluginStatusReady bool
 	var (
 		usePostgresStore     bool
 		pgStoreDSN           string
@@ -378,57 +367,7 @@ func main() {
 		parsed.Home = homeCfg
 		parsed.Port = config.NormalizeHomePort(parsed.Port)
 		parsed.UsageStatisticsEnabled = true
-		pluginSyncCfg := *parsed
-		parsed.Plugins.StoreAuth = nil
-		var errHomePlugins error
-		platform := homeplugins.CurrentPlatform()
-		if pluginSyncCfg.Plugins.Enabled {
-			ctxHomePlugins, cancelHomePlugins := context.WithTimeout(context.Background(), 30*time.Second)
-			installedVersions, errInstalledPlugins := homeplugins.InstalledVersions(&pluginSyncCfg)
-			if errInstalledPlugins != nil {
-				homePluginStatusReady = true
-				errHomePlugins = errInstalledPlugins
-				homePluginSyncReport = homeplugins.CompletedSyncReport(platform, errInstalledPlugins)
-			} else {
-				pluginSyncRequest := sdkpluginstore.PluginSyncRequest{
-					SchemaVersion:     sdkpluginstore.PluginSyncSchemaVersion,
-					GOOS:              platform.GOOS,
-					GOARCH:            platform.GOARCH,
-					InstalledVersions: installedVersions,
-				}
-				pluginSyncResponse, errFetchPlugins := homeClient.GetPluginSync(ctxHomePlugins, pluginSyncRequest)
-				errHomePlugins = errFetchPlugins
-				switch {
-				case errHomePlugins == nil:
-					homePluginStatusReady = true
-					homePluginSyncReport, errHomePlugins = homeplugins.SyncResolvedWithReport(ctxHomePlugins, &pluginSyncCfg, pluginSyncResponse.Items, pluginSyncResponse.ExpiresAt, pluginSyncRequest.InstalledVersions, pluginHost)
-				case errors.Is(errHomePlugins, home.ErrPluginSyncUnsupported):
-					homePluginStatusReady = true
-					homePluginSyncReport, errHomePlugins = homeplugins.SyncWithReport(ctxHomePlugins, &pluginSyncCfg, pluginHost)
-				default:
-					homePluginStatusReady = true
-					homePluginSyncReport = homeplugins.CompletedSyncReport(platform, errHomePlugins)
-				}
-				pluginSyncRequest.Clear()
-				pluginSyncResponse.Clear()
-			}
-			cancelHomePlugins()
-		} else {
-			homePluginStatusReady = true
-			homePluginSyncReport = homeplugins.CompletedSyncReport(platform, nil)
-		}
-		if errHomePlugins != nil {
-			log.Errorf("failed to sync plugins from home: %v", errHomePlugins)
-		}
-		if homePluginStatusReady {
-			errReportPlugins := home.ReportPluginStatus(context.Background(), homeClient, homeCfg.NodeID, homePluginSyncReport)
-			if errReportPlugins != nil {
-				log.Warnf("failed to report home plugin sync status: %v", errReportPlugins)
-			}
-		}
-		if errHomePlugins != nil {
-			return
-		}
+		parsed.Plugins = config.PluginsConfig{}
 		cfg = parsed
 
 		// Keep a non-empty config path for downstream components (log paths, management assets, etc),
@@ -638,7 +577,7 @@ func main() {
 		return
 	}
 
-	log.Infof("CLIProxyAPI Version: %s, Commit: %s, BuiltAt: %s", buildinfo.Version, buildinfo.Commit, buildinfo.BuildDate)
+	log.Infof("ATID CLI Proxy Version: %s, Commit: %s, BuiltAt: %s", buildinfo.Version, buildinfo.Commit, buildinfo.BuildDate)
 
 	// Set the log level based on the configuration.
 	util.SetLogLevel(cfg)
@@ -682,33 +621,11 @@ func main() {
 
 	// Register built-in access providers before constructing services.
 	configaccess.Register(&cfg.SDKConfig)
-	pluginHost.ApplyConfig(context.Background(), cfg)
-	if configLoadedFromHome && homePluginStatusReady {
-		errHomePluginLoad := homeplugins.MarkLoadResults(&homePluginSyncReport, pluginHost)
-		errReportPlugins := home.ReportPluginStatus(context.Background(), homeClient, cfg.Home.NodeID, homePluginSyncReport)
-		if errHomePluginLoad != nil {
-			log.Errorf("failed to load home plugins: %v", errHomePluginLoad)
-		}
-		if errReportPlugins != nil {
-			log.Warnf("failed to report home plugin load status: %v", errReportPlugins)
-		}
-		if errHomePluginLoad != nil {
-			return
-		}
-	}
 	if homeClient != nil {
 		// The bootstrap client is not owned by the runtime service. Close it after
 		// the final startup report so it cannot retain an idle RESP connection.
 		homeClient.Close()
 		homeClient = nil
-	}
-	if pluginHost.HasTriggeredCommandLineFlags() {
-		if exitCode, handled := pluginHost.ExecuteCommandLine(context.Background(), os.Args[0], os.Args[1:], configFilePath, flag.CommandLine); handled {
-			if exitCode != 0 {
-				os.Exit(exitCode)
-			}
-			return
-		}
 	}
 
 	// Handle different command modes based on the provided flags.
@@ -855,62 +772,6 @@ func resolveManagementBaseURL(flagURL string, cfg *config.Config) string {
 		port = cfg.Port
 	}
 	return fmt.Sprintf("http://127.0.0.1:%d", port)
-}
-
-func pluginBootstrapConfigPath(args []string, defaultPath string) string {
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		switch {
-		case arg == "--":
-			return defaultPluginBootstrapConfigPath(defaultPath)
-		case arg == "-config" || arg == "--config":
-			if i+1 < len(args) {
-				return args[i+1]
-			}
-			return defaultPluginBootstrapConfigPath(defaultPath)
-		case strings.HasPrefix(arg, "-config="):
-			return strings.TrimPrefix(arg, "-config=")
-		case strings.HasPrefix(arg, "--config="):
-			return strings.TrimPrefix(arg, "--config=")
-		}
-	}
-	return defaultPluginBootstrapConfigPath(defaultPath)
-}
-
-func defaultPluginBootstrapConfigPath(defaultPath string) string {
-	if strings.TrimSpace(defaultPath) != "" {
-		return defaultPath
-	}
-	wd, errGetwd := os.Getwd()
-	if errGetwd != nil {
-		return "config.yaml"
-	}
-	return filepath.Join(wd, "config.yaml")
-}
-
-func loadPluginBootstrapConfig(path string) *config.Config {
-	raw, errReadFile := os.ReadFile(path)
-	if errReadFile != nil {
-		if !errors.Is(errReadFile, os.ErrNotExist) {
-			log.Warnf("failed to read plugin bootstrap config: %v", errReadFile)
-		}
-		cfg := &config.Config{}
-		cfg.NormalizePluginsConfig()
-		return cfg
-	}
-	if len(strings.TrimSpace(string(raw))) == 0 {
-		cfg := &config.Config{}
-		cfg.NormalizePluginsConfig()
-		return cfg
-	}
-	cfg, errParseConfig := config.ParseConfigBytes(raw)
-	if errParseConfig != nil {
-		log.Warnf("failed to parse plugin bootstrap config: %v", errParseConfig)
-		cfg = &config.Config{}
-		cfg.NormalizePluginsConfig()
-		return cfg
-	}
-	return cfg
 }
 
 func appendCSV(dst *[]string) func(string) error {

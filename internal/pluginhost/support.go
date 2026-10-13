@@ -1,6 +1,7 @@
 package pluginhost
 
-// SupportPluginHeaderValue reports whether the current binary was built with CGO enabled.
+// SupportPluginHeaderValue preserves the wire contract for clients of the core API.
+// ATID CLI Proxy never loads dynamic extensions, regardless of CGO availability.
 func SupportPluginHeaderValue() string {
-	return supportPluginValue
+	return "0"
 }

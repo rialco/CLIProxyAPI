@@ -1,3 +1,10 @@
+FROM oven/bun:1.3.14 AS frontend
+WORKDIR /web
+COPY web/package.json web/bun.lock ./
+RUN bun install --frozen-lockfile
+COPY web/ ./
+RUN bun run build
+
 FROM golang:1.26-bookworm AS builder
 
 WORKDIR /app
@@ -25,6 +32,7 @@ RUN mkdir /CLIProxyAPI
 COPY --from=builder ./app/CLIProxyAPI /CLIProxyAPI/CLIProxyAPI
 
 COPY config.example.yaml /CLIProxyAPI/config.example.yaml
+COPY --from=frontend /web/dist/index.html /CLIProxyAPI/static/management.html
 
 WORKDIR /CLIProxyAPI
 

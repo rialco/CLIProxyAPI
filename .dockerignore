@@ -39,3 +39,8 @@ bin
 .bmad
 _bmad
 _bmad-output
+
+# Private development state and local frontend outputs
+.dev
+web/node_modules
+web/dist

@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -49,46 +48,9 @@ func (s *Service) syncHomePlugins(ctx context.Context, cfg *config.Config) (home
 	return s.syncHomePluginsWithClient(ctx, cfg, nil)
 }
 
+// Retain the coordinator contract without installing Home-supplied extensions.
 func (s *Service) syncHomePluginsWithClient(ctx context.Context, cfg *config.Config, client *home.Client) (homeplugins.SyncReport, string, bool, error) {
-	if s == nil || cfg == nil || !cfg.Home.Enabled {
-		return homeplugins.SyncReport{}, "", false, nil
-	}
-	syncKey := homePluginSyncKey(cfg)
-	if syncKey != "" {
-		s.homePluginSyncMu.Lock()
-		if s.homePluginSyncKey == syncKey {
-			s.homePluginSyncMu.Unlock()
-			return homeplugins.SyncReport{}, syncKey, false, nil
-		}
-		s.homePluginSyncMu.Unlock()
-	}
-	if !cfg.Plugins.Enabled {
-		return homeplugins.CompletedSyncReport(homeplugins.CurrentPlatform(), nil), syncKey, false, nil
-	}
-	installedVersions, errInstalled := homeplugins.InstalledVersions(cfg)
-	if errInstalled != nil {
-		return homeplugins.CompletedSyncReport(homeplugins.CurrentPlatform(), errInstalled), syncKey, false, errInstalled
-	}
-	platform := homeplugins.CurrentPlatform()
-	request := sdkpluginstore.PluginSyncRequest{
-		SchemaVersion:     sdkpluginstore.PluginSyncSchemaVersion,
-		GOOS:              platform.GOOS,
-		GOARCH:            platform.GOARCH,
-		InstalledVersions: installedVersions,
-	}
-	defer request.Clear()
-	response, errFetch := s.fetchHomePluginSyncWithClient(ctx, client, request)
-	if errors.Is(errFetch, home.ErrPluginSyncUnsupported) {
-		response.Clear()
-		report, errSync := homeplugins.SyncWithReport(ctx, cfg, s.pluginHost)
-		return report, syncKey, true, errSync
-	}
-	if errFetch != nil {
-		return homeplugins.CompletedSyncReport(platform, errFetch), syncKey, false, errFetch
-	}
-	defer response.Clear()
-	report, errSync := homeplugins.SyncResolvedWithReport(ctx, cfg, response.Items, response.ExpiresAt, request.InstalledVersions, s.pluginHost)
-	return report, syncKey, true, errSync
+	return homeplugins.SyncReport{}, "", false, nil
 }
 
 func (s *Service) fetchHomePluginSyncWithClient(ctx context.Context, client *home.Client, request sdkpluginstore.PluginSyncRequest) (sdkpluginstore.PluginSyncResponse, error) {
@@ -175,32 +137,7 @@ func (s *Service) processHomePluginTasksWithClient(ctx context.Context, cfg *con
 }
 
 func (s *Service) stageHomePluginTasksWithClient(ctx context.Context, cfg *config.Config, client *home.Client) ([]homePluginTaskWork, error) {
-	if s == nil || cfg == nil || !cfg.Home.Enabled {
-		return nil, nil
-	}
-	if client == nil {
-		s.homeMu.Lock()
-		client = s.homeClient
-		s.homeMu.Unlock()
-	}
-	if client == nil {
-		return nil, fmt.Errorf("home client is unavailable")
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	tasks, errTasks := client.GetPluginTasks(ctx)
-	if errTasks != nil {
-		return nil, errTasks
-	}
-	staged := make([]homePluginTaskWork, 0, len(tasks))
-	for _, task := range tasks {
-		if !strings.EqualFold(strings.TrimSpace(task.Operation), "delete") {
-			continue
-		}
-		staged = append(staged, homePluginTaskWork{cfg: cfg, task: task})
-	}
-	return staged, nil
+	return nil, nil
 }
 
 func (s *Service) finalizeHomePluginWork(ctx context.Context, client *home.Client, work *homePluginFinalization) error {
