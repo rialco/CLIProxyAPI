@@ -1378,6 +1378,8 @@
           "strategy_round_robin": "Round Robin",
           "strategy_weighted_round_robin": "Weighted Round Robin",
           "strategy_fill_first": "Fill First",
+          "strategy_earliest_reset": "Earliest quota reset",
+          "strategy_earliest_reset_hint": "Claude/Codex: prioritize the soonest 5-hour or weekly reset; skip accounts that hit either limit. Routing uses cached data with background refresh and error backoff. Manual priorities apply; session affinity is ignored.",
           "session_affinity_ttl": "Session Affinity TTL",
           "force_model_prefix": "Force Model Prefix",
           "force_model_prefix_desc": "Unprefixed model requests only use credentials without prefix",

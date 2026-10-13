@@ -1169,6 +1169,8 @@
           "strategy_round_robin": "Round Robin",
           "strategy_weighted_round_robin": "Weighted Round Robin",
           "strategy_fill_first": "Fill First",
+          "strategy_earliest_reset": "Ưu tiên hạn mức sắp đặt lại",
+          "strategy_earliest_reset_hint": "Claude/Codex: ưu tiên lần đặt lại gần nhất của hạn mức 5 giờ hoặc hàng tuần; bỏ qua tài khoản đã hết một trong hai hạn mức. Định tuyến dùng bộ nhớ đệm, cập nhật nền và tăng khoảng chờ khi lỗi. Giữ ưu tiên thủ công; bỏ qua gắn kết phiên.",
           "session_affinity_ttl": "TTL Session Affinity",
           "force_model_prefix": "Bắt buộc tiền tố model",
           "force_model_prefix_desc": "Yêu cầu model không có tiền tố chỉ dùng credential không có tiền tố",

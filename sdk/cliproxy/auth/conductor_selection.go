@@ -65,7 +65,7 @@ func (m *Manager) PluginSchedulerWantsAcrossPriorities() bool {
 
 func isBuiltInSelector(selector Selector) bool {
 	switch selector.(type) {
-	case *RoundRobinSelector, *WeightedRoundRobinSelector, *FillFirstSelector:
+	case *RoundRobinSelector, *WeightedRoundRobinSelector, *FillFirstSelector, *EarliestResetSelector:
 		return true
 	default:
 		return false
@@ -566,6 +566,11 @@ func (m *Manager) availableAuthsForRouteModelWithPriorityMode(auths []*Auth, pro
 	for _, candidate := range auths {
 		checkModel := m.selectionModelForAuth(candidate, routeModel)
 		blocked, reason, next := isAuthBlockedForModel(candidate, checkModel, now)
+		if resetSelector, ok := m.selector.(*EarliestResetSelector); ok && !blocked {
+			if _, until := resetSelector.profile(candidate, checkModel, now); !until.IsZero() {
+				blocked, reason, next = true, blockReasonCooldown, until
+			}
+		}
 		if !blocked {
 			priority := authPriority(candidate)
 			availableByPriority[priority] = append(availableByPriority[priority], candidate)
@@ -656,6 +661,9 @@ func (m *Manager) availableAuthsForSelector(selector Selector, auths []*Auth, pr
 }
 
 func selectionArgForSelector(selector Selector, routeModel string) string {
+	if _, ok := selector.(*EarliestResetSelector); ok {
+		return routeModel
+	}
 	if isBuiltInSelector(selector) {
 		return ""
 	}
@@ -1665,7 +1673,11 @@ func (m *Manager) useSchedulerFastPath() bool {
 	if m == nil || m.scheduler == nil {
 		return false
 	}
-	return isBuiltInSelector(m.Selector())
+	selector := m.Selector()
+	if _, ok := selector.(*EarliestResetSelector); ok {
+		return false
+	}
+	return isBuiltInSelector(selector)
 }
 
 func shouldRetrySchedulerPick(err error) bool {
@@ -1827,6 +1839,7 @@ func (m *Manager) pickNextLegacy(ctx context.Context, provider, model string, op
 	if !handled {
 		selectorCtx := selectorContextForAvailableAuths(ctx, selector, model)
 		selectorCtx = withSessionAffinityTransientAuthIDs(selectorCtx, transientAuthIDs)
+		selectorCtx = m.withUsageQuotaModels(selectorCtx, selector, selectorAuths, model)
 		selected, errPick = selector.Pick(selectorCtx, provider, selectionArgForSelector(selector, model), opts, selectorAuths)
 		if errPick != nil {
 			if isBuiltInSelector(selector) {
@@ -2173,6 +2186,7 @@ func (m *Manager) pickNextMixedLegacy(ctx context.Context, providers []string, m
 	if !handled {
 		selectorCtx := selectorContextForAvailableAuths(ctx, selector, model)
 		selectorCtx = withSessionAffinityTransientAuthIDs(selectorCtx, transientAuthIDs)
+		selectorCtx = m.withUsageQuotaModels(selectorCtx, selector, selectorAuths, model)
 		selected, errPick = selector.Pick(selectorCtx, "mixed", selectionArgForSelector(selector, model), opts, selectorAuths)
 		if errPick != nil {
 			if isBuiltInSelector(selector) {

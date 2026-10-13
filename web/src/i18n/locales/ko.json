@@ -1378,6 +1378,8 @@
           "strategy_round_robin": "라운드 로빈",
           "strategy_weighted_round_robin": "가중 라운드 로빈",
           "strategy_fill_first": "채우기 우선",
+          "strategy_earliest_reset": "할당량 초기화가 빠른 계정 우선",
+          "strategy_earliest_reset_hint": "Claude/Codex: 5시간 또는 주간 한도 중 초기화가 가장 빠른 계정을 우선하며, 어느 한도든 소진되면 건너뜁니다. 라우팅은 캐시를 사용하고 백그라운드에서 갱신하며 실패 시 재시도 간격을 늘립니다. 수동 우선순위는 유지하고 세션 고정은 무시합니다.",
           "session_affinity_ttl": "세션 어피니티 TTL",
           "force_model_prefix": "모델 접두사 강제",
           "force_model_prefix_desc": "접두사가 없는 모델 요청은 접두사가 없는 자격 증명만 사용합니다.",

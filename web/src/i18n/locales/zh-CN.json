@@ -1376,6 +1376,8 @@
           "strategy_round_robin": "轮询 (Round Robin)",
           "strategy_weighted_round_robin": "加权轮询 (Weighted Round Robin)",
           "strategy_fill_first": "填充优先 (Fill First)",
+          "strategy_earliest_reset": "优先使用即将重置的额度",
+          "strategy_earliest_reset_hint": "Claude/Codex：优先使用五小时或每周额度中最早重置的可用账户；任一额度耗尽时跳过。路由使用缓存数据，后台刷新，失败时延后重试。保留手动优先级，忽略会话亲和性。",
           "session_affinity_ttl": "会话粘性 TTL",
           "force_model_prefix": "强制模型前缀",
           "force_model_prefix_desc": "未带前缀的模型请求只使用无前缀凭据",

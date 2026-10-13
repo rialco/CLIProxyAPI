@@ -9,6 +9,17 @@ import (
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/executor"
 )
 
+func TestEarliestResetRoutingIgnoresSessionAffinity(t *testing.T) {
+	cfg := &internalconfig.Config{Routing: internalconfig.RoutingConfig{Strategy: "earliest-reset", SessionAffinity: true}}
+	state := normalizedRoutingRuntimeState(cfg)
+	if state.strategy != "earliest-reset" {
+		t.Fatalf("strategy = %s", state.strategy)
+	}
+	if _, ok := newRoutingSelector(state).(*coreauth.EarliestResetSelector); !ok {
+		t.Fatalf("selector = %T; sticky affinity must not override quota order", newRoutingSelector(state))
+	}
+}
+
 func TestWeightedRoundRobinRoutingSelector(t *testing.T) {
 	state := normalizedRoutingRuntimeState(&internalconfig.Config{
 		Routing: internalconfig.RoutingConfig{Strategy: "wrr"},

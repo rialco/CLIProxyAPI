@@ -12,7 +12,7 @@ const Icon = CONFIG_TAB_ICONS.network;
 type RoutingStrategy = VisualConfigValues['routingStrategy'];
 type DisableImageGeneration = VisualConfigValues['disableImageGeneration'];
 
-/** 02 网络配置：代理、重试、路由策略、图像生成开关与网络行为开关。 */
+/** Network settings: proxies, retries, credential routing and image generation. */
 export function SectionNetwork({
   values,
   validationErrors,
@@ -23,6 +23,10 @@ export function SectionNetwork({
   const { t } = useTranslation();
 
   const routingStrategyOptions: Array<{ value: RoutingStrategy; label: string }> = [
+    {
+      value: 'earliest-reset',
+      label: t('config_management.visual.sections.network.strategy_earliest_reset'),
+    },
     {
       value: 'round-robin',
       label: t('config_management.visual.sections.network.strategy_round_robin'),
@@ -118,7 +122,11 @@ export function SectionNetwork({
         <SelectSetting
           fieldId="routingStrategy"
           label={t('config_management.visual.sections.network.routing_strategy')}
-          description={t('config_management.visual.sections.network.routing_strategy_hint')}
+          description={t(
+            values.routingStrategy === 'earliest-reset'
+              ? 'config_management.visual.sections.network.strategy_earliest_reset_hint'
+              : 'config_management.visual.sections.network.routing_strategy_hint'
+          )}
           value={values.routingStrategy}
           options={routingStrategyOptions}
           disabled={disabled}

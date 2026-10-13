@@ -1,6 +1,7 @@
 export type PayloadParamValueType = 'string' | 'number' | 'boolean' | 'json';
 export type DisableImageGenerationMode = 'false' | 'true' | 'chat' | 'passthrough';
-export type RoutingStrategy = 'round-robin' | 'weighted-round-robin' | 'fill-first';
+export type RoutingStrategy =
+  'round-robin' | 'weighted-round-robin' | 'fill-first' | 'earliest-reset';
 export type PayloadParamValidationErrorCode =
   'payload_invalid_number' | 'payload_invalid_boolean' | 'payload_invalid_json';
 

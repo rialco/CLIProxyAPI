@@ -23,6 +23,42 @@ No database, Docker, or `.env` file is needed for local file storage.
 
 ## Start and verify
 
+### Quota-aware account routing
+
+In the panel, open **Config → Network → Routing strategy** and select
+**Earliest quota reset** (`routing.strategy: earliest-reset`). This policy is
+implemented locally for Claude and Codex OAuth accounts:
+
+- Exclude disabled, incompatible, cooling-down, and quota-exhausted accounts.
+- Preserve explicit credential priorities; among equally prioritized accounts,
+  use the earliest future reset across all applicable allowances, including both
+  the five-hour and weekly windows. Exhausting either window blocks the account.
+- Reevaluate the cached deadlines on each request. Keep selecting that account
+  while its reset is earliest and it remains available. Remaining percentage
+  is an availability signal, not a reason to prefer an account that resets later.
+- Route requests entirely from the in-memory cache, without waiting for a quota
+  query. Refresh the fixed official usage endpoints in the background about once
+  per minute per account, including accounts that have not received work yet.
+  At most four refreshes run concurrently, with no duplicate call per account.
+  Per-account jitter (0–15 seconds, plus the five-second scheduler tick) spreads
+  refreshes; failed or unusable queries back off to two, then four minutes. A
+  successful query restores the normal interval. Polling does not scale with
+  request volume. Queries run without the browser and never purchase credits or
+  reset allowances.
+- Incorporate newer response-header observations without extra API calls. Positive
+  capacity estimates expire after five minutes; known exhaustion remains blocked
+  until its reported reset or a newer recovery observation. Passed reset dates
+  are no longer ranked. If no eligible account has a reliable reset date, fall
+  back to round robin; no allowance is inferred from missing data.
+- Ignore automatic session affinity for this strategy. Explicit account pinning
+  and existing model/provider restrictions still apply.
+
+This reduces unused allowances for the work actually submitted; it cannot
+guarantee full utilization of every account. Home-managed dispatch remains under
+Home's policy. Other providers use the round-robin fallback.
+
+### Run the development server
+
 From the repository root:
 
 ```bash
